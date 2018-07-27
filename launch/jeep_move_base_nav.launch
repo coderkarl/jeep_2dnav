@@ -1,0 +1,27 @@
+<launch>
+  <master auto="start"/>
+
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0.0 0.0 0.0 0 0 0.0 /odom /base_link 10"/> -->
+
+  <!-- <node pkg="tf" type="static_transform_publisher" name="base_frame_laser" args="0.0 0 0 0.0 0 0 /base_link /laser 5"/> -->
+
+  <!-- Run the map server -->
+  <!-- <arg name="map" default="$(find maps)/floor_plan_2017a.yaml"/> -->
+  <!-- <node name="map_server" pkg="map_server" type="map_server" args="floor_plan_2017a.yaml" required="true" output="screen"/> -->
+
+  <!--- Run AMCL -->
+  <!-- <include file="$(find jeep_2dnav)/launch/jeep_amcl_diff.launch" /> -->
+
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+    <rosparam file="$(find jeep_2dnav)/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find jeep_2dnav)/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find jeep_2dnav)/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find jeep_2dnav)/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find jeep_2dnav)/teb_local_planner_params.yaml" command="load" />
+    <param name="controller_frequency" value="2.0" />
+    <param name="clearing_rotation_allowed" value="false" />
+    <param name="base_global_planner" value="global_planner/GlobalPlanner" />
+    <!-- <param name="base_local_planner" value="base_local_planner/TrajectoryPlannerROS" /> -->
+    <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS" />
+  </node>
+</launch>

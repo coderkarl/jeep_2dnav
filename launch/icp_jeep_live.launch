@@ -1,0 +1,12 @@
+<launch>
+
+  <arg name="map_file" default="/home/karl/Downloads/big_run_map1u_clean_append6.yaml"/>
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+  <!-- <include file="$(find jeep_2dnav)/launch/jeep_amcl_diff.launch" /> -->
+
+  <!-- run pointcloud_to_laserscan node, CONSIDER THIS TO FILTER SOME DATA FIRST -->
+
+  <node pkg="jeep_2dnav" type="jeep_icp.py" name="jeep_icp" output="screen"/>
+
+</launch>

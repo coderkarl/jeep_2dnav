@@ -1,0 +1,30 @@
+<launch>
+
+  <!-- Arguments -->
+  <arg name="bagfile" default="/home/karl/auto_jeep/bag_files_ROS/jeep_gnd_filt_Nov14_runshort_run2.bag"/>
+  <param name="/use_sim_time" value="true"/>
+
+  <arg name="map_file" default="$(find nav_sim)/config/big_run_map1u_clean_append6.yaml"/>
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="5.5 -7.5 0 0.03 0 0 /map /odom 2" /> -->
+  <!-- 2018-05-27-19-24-30.bag, x:6.5 y:2.3 yaw:0.09 -->
+  <!-- 2018-05-27-19-42-03.bag, x:5.5 y:-7.5 yaw:0.03 -->
+  <!-- 2018-05-27-19-44-12.bag, x:2.5 y:-10.5 yaw:0.05 -->
+  <!-- 2018-05-27-19-49-54.bag, x:1.5 y:-15.0 yaw:0.01 -->
+  <!-- 2018-05-27-19-55-43.bag, x:-9.5 y:-17.0 yaw:0.05 -->
+  <!-- Nov run3.bag, x:6.9 y:0.3 yaw:0.01 -->
+
+  <!-- RViz -->
+  <node name="visualisation" pkg="rviz" type="rviz" args="-d $(find nav_sim)/config/nav_sim.rviz" />
+
+  <!-- Play the bagfile, loop is an option -->
+  <node pkg="rosbag" type="play" name="rosbag" args="--clock $(arg bagfile)"/>
+
+  <!-- <include file="$(find jeep_2dnav)/launch/jeep_amcl_diff.launch" /> -->
+
+  <!-- run pointcloud_to_laserscan node, CONSIDER THIS TO FILTER SOME DATA FIRST -->
+
+  <node pkg="jeep_2dnav" type="jeep_icp_segs.py" name="jeep_icp" output="screen"/>
+
+</launch>
