@@ -17,6 +17,7 @@ from sensor_msgs.msg import PointCloud2 #LaserScan
 from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
 import tf2_ros
 import sensor_msgs.point_cloud2 as pcl2
+import time
 
 from slam_04_d_apply_transform_question import\
      estimate_transform, apply_transform#, correct_pose
@@ -61,7 +62,7 @@ class LineSeg():
                 xB = x1
                 yB = y1
             #end swap
-            if(abs(yB-yA) < 0.5):
+            if(abs(yB-yA) < 0.05): #This ruins the angle correction if < 0.5
                 avg = (yA+yB)/2
                 yA = avg
                 yB = avg
@@ -73,7 +74,7 @@ class LineSeg():
                 xB = x1
                 yB = y1
             #end swap
-            if(abs(xB-xA) < 0.5):
+            if(abs(xB-xA) < 0.05): #This ruins the angle correction if < 0.5
                 avg = (xA+xB)/2
                 xA = avg
                 xB = avg
@@ -168,10 +169,10 @@ class JeepICP():
         self.landmarks.append(MapRef('horz',-12.7,6.05,0.0,6.05))
         self.landmarks.append(MapRef('vert',0.0,6.05,0.0,-3.0))
         
-        self.landmarks.append(MapRef('horz',13.55,-24.,10.2,-24.)) # shed
-        self.landmarks.append(MapRef('vert',10.2,-24.,10.2,-20.))
-        self.landmarks.append(MapRef('horz',10.2,-20.,13.55,-20.))
-        self.landmarks.append(MapRef('vert',13.55,-20.,13.55,-24.))
+        self.landmarks.append(MapRef('horz',13.55,-24.,10.2,-24.)) # shed south wall
+        self.landmarks.append(MapRef('vert',10.2,-24.,10.2,-20.)) # west
+        self.landmarks.append(MapRef('horz',10.2,-20.,13.55,-20.)) # north
+        self.landmarks.append(MapRef('vert',13.55,-20.,13.55,-24.)) # east
         
         self.landmarks.append(MapRef('point',2.5, -3.)) # garage post
         self.landmarks.append(MapRef('point',10.8, -5.5)) # four trees
@@ -185,12 +186,16 @@ class JeepICP():
         #self.odom_pub = rospy.Publisher('odom_icp', Odometry, queue_size=1)
         self.odom_broadcaster = tf.TransformBroadcaster()
         
-        rospy.Subscriber('/pc2', PointCloud2, self.cloud_callback, queue_size = 1)
+        rospy.Subscriber('/pc2', PointCloud2, self.cloud_callback, queue_size = 10)
         #self.cloud_pub = rospy.Publisher('cloud_map', PointCloud2, queue_size=1)
         
+        # Facing East, east of garage
         self.odom_x = 6.0 #6.0
         self.odom_y = 1. #-8.0
-        self.odom_theta = 0.03 #Try -0.03 w.r.t. map alignment (landmarks made square above)
+        #self.odom_theta = 0.05 #Try -0.03 w.r.t. map alignment (landmarks made square above)
+        
+        # Facing South, east of garage
+        self.odom_theta = -1.5
         
         self.min_point_pairs = 7
         self.max_correlation_dist = 2.0 #meters, max correlation dist for pairing lidar points with known map points
@@ -199,7 +204,7 @@ class JeepICP():
         self.MAX_DELTA_THETA_RAD = 0.2 #radians, ignore icp transformations with abs(sin(theta)) > this
         self.MAX_DELTA_X = 3.0 #meters, ignore icp transformations with abs(delta x) > this
         self.MAX_DELTA_Y = 3.0 #meters
-        self.alpha = 0.2 # complementary filter: odom x,y,theta = odom*(1-alpha) + icp_odom*(alpha)
+        self.alpha = 0.05 # complementary filter: odom x,y,theta = odom*(1-alpha) + icp_odom*(alpha)
         
         # line segment find params, NOTE current issue transitioning from point 59 to 0 (need to overlap and merge maybe)
         #    ALSO, you are not re-using the corner point. Shed west wall counted as line to NW corner, but North wall does not start with NW corner
@@ -210,10 +215,10 @@ class JeepICP():
         self.max_seg_correlation_dist = 15.
         self.prev_trafo_seg_type = 'horz'
         
-        self.segMAX_DELTA_THETA_RAD = 0.4 #radians, ignore icp transformations with abs(sin(theta)) > this
+        self.segMAX_DELTA_THETA_RAD = 0.3 #radians, ignore icp transformations with abs(sin(theta)) > this
         self.segMAX_DELTA_X = 5.0 #meters, ignore icp transformations with abs(delta x) > this
         self.segMAX_DELTA_Y = 5.0 #meters
-        self.seg_alpha = 0.2
+        self.seg_alpha = 0.05
         
         #self.tf_listener = tf.TransformListener()
         self.transform = None
@@ -222,9 +227,16 @@ class JeepICP():
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         
         self.cloud_count = 0
+        self.applied = False
+        self.init_time = rospy.Time.now()
+        self.apply_time = self.init_time
         
         self.prev_eval_dist_sum = -1.
         self.first_scan = True
+        self.pose_ready = False
+        #while(rospy.Time.now() == 0):
+        #    time.sleep(0.2)
+        self.pose_time = rospy.Time.now()
         
     def get_dist(self, ref, pt, eps = 2.0):
         ref_pt = None
@@ -333,7 +345,7 @@ class JeepICP():
         c = 1.
         try:
             # TRANSFORM THE LASER POINTCLOUD FROM THE LASER FRAME TO MAP FRAME...
-            #    LOOKUP THE TRANSFORM AT THE TIME THAT CORRESPONDNS WITH THE POINTCLOUD DATA (msg.header.stamp)
+            #    LOOKUP THE TRANSFORM AT THE TIME THAT CORRESPONDS WITH THE POINTCLOUD DATA (msg.header.stamp)
             #    IF MUTLIPLE ITERATIONS ARE DONE FOR ONE POINTCLOUD MESSAGE, YOU WILL NEED TO USE A DIFFERENT TIME
             #        IF YOU WANT TO TRY TO USE update_pose() EACH ITERATION
             #        MAYBE YOU CAN JUST DEFINE self.transform properly using self.odom_x,y,theta
@@ -342,13 +354,17 @@ class JeepICP():
             
             # not working with bag file. Requires extrapolation into future ( < 50 msec)
             # tf MessageFilter or waitForTransform?
-            #self.transform = self.tf_buffer.lookup_transform("map","laser", msg.header.stamp) # Works with nav_sim, not bag, not jeep live
-            self.transform = self.tf_buffer.lookup_transform("map","laser", rospy.Time()) # rospy.Time(0) requests latest
+            if(not self.first_scan and False):
+                self.transform = self.tf_buffer.lookup_transform("map","laser", msg.header.stamp) # Works with nav_sim, not bag, not jeep live
+            else:
+                self.transform = self.tf_buffer.lookup_transform("map","laser", rospy.Time()) # rospy.Time(0) requests latest
             #self.transform = self.tf_buffer.waitForTransform("map","laser", msg.header.stamp)
+            self.pose_time = msg.header.stamp
 
             pc_map = do_transform_cloud(msg, self.transform)
             #self.cloud_pub.publish(pc_map) #Temporary for validating the transformed point cloud
-            print "\nNEW POINT CLOUD"
+            self.cloud_count += 1
+            print "\nNEW POINT CLOUD ", self.cloud_count
             rk = 0
             best_rk = 0 #unused, right?
             left_list  = []
@@ -367,6 +383,7 @@ class JeepICP():
             line_segs = []
             line_seg_pts = []
             nSegPts = 0
+            best_nSegPts = 0
             nLineSegs = 0
             seg_rk = 0
             trafo_seg_horz = None
@@ -428,12 +445,14 @@ class JeepICP():
                             #end if
                         else:
                             net_angle = get_angle(segPtA,segPt1)
-                            if(nSegPts >= self.min_nSegPts and (abs(cos(net_angle)) < 0.2 or abs(sin(net_angle)) < 0.2) ):
+                            # NEED TO CALCULATE SCORE OF line seg correlation by calculating the trafo and using trafo_eval like below if nLineSegs == 0
+                            if(nSegPts >= self.min_nSegPts and nSegPts >= best_nSegPts and (abs(cos(net_angle)) < 0.2 or abs(sin(net_angle)) < 0.2) ):
                                 nLineSegs += 1
+                                best_nSegPts = nSegPts #replace this logic with trafo_eval score
                                 line_segs.append(LineSeg(nSegPts, segPtA[0], segPtA[1], segPt1[0],segPt1[1]) )
-                                print "FOUND LINE SEGMENT, nSegPts: ", nSegPts, "angle: ", get_angle(segPtA,segPt1)
+                                print "FOUND (BETTER) LINE SEGMENT, nSegPts: ", nSegPts, "angle: ", get_angle(segPtA,segPt1)
                                 print line_segs[-1].x1, line_segs[-1].y1
-                                print line_segs[-1].x2, line_segs[-1].y2 
+                                print line_segs[-1].x2, line_segs[-1].y2
                                 for pk in range(nSegPts):
                                     print line_seg_pts[pk]
                                 #end print line seg pts
@@ -495,7 +514,8 @@ class JeepICP():
                     if( (not trafo == None) and (new_dist_sum < cur_dist_sum+1.0) and (abs(cur_dist_sum - self.prev_eval_dist_sum) < 30.) ):
                         self.prev_eval_dist_sum = cur_dist_sum
                         print "enough points, better trafo"
-                        if(abs(trafo[2]) < self.MAX_DELTA_THETA_RAD and abs(trafo[3]) < self.MAX_DELTA_X and abs(trafo[4]) < self.MAX_DELTA_Y ):
+                        if( (abs(trafo[2]) < self.MAX_DELTA_THETA_RAD and abs(trafo[3]) < self.MAX_DELTA_X and abs(trafo[4]) < self.MAX_DELTA_Y )
+                           or numPoints > 50):
                             #print "lx, ly, rx, ry"
                             #for l,r in zip(left_list,right_list):
                             #    print l[0], ',', l[1], ',', r[0], ',', r[1]
@@ -544,26 +564,41 @@ class JeepICP():
         #Complementary, low pass, filter: filt = filt*(1-alpha) + raw*(alpha)
         if(nLineSegs > 0):
             alpha = self.seg_alpha
+            #if(self.cloud_count > 190 and self.cloud_count < 195 and s < -0.1 and not self.applied):
+            now = rospy.Time.now()
+            if((now-self.apply_time).to_sec() > 0.1):
+                #alpha = 1.0
+                self.applied = True
+                self.apply_time = now
+                print "TRAFO APPLIED ", (now - self.init_time).to_sec()
+            elif(self.applied):
+                self.applied = False
         else:
             alpha = self.alpha
         
         x = self.odom_x
         y = self.odom_y
+        theta = self.odom_theta
         raw_x = c*x - s*y + dx
         self.odom_x = x*(1.-alpha) + raw_x*(alpha)
         raw_y = s*x + c*y + dy
         self.odom_y = y*(1.-alpha) + raw_y*(alpha)
-        self.odom_theta = self.odom_theta*(1.-alpha) + math.atan2(s,c)*(alpha) 
+        raw_theta = theta + math.atan2(s,c)*(alpha)
+        self.odom_theta = theta*(1.-alpha) + raw_theta*(alpha)
         
-        self.update_pose()
+        #self.update_pose()
+        self.pose_ready = True
     #end def cloud_callback
         
     def update_pose(self):
+        tf_time = self.pose_time
+        if self.first_scan:
+            tf_time = rospy.Time.now()
         odom_quat = quaternion_from_euler(0, 0, self.odom_theta)
         self.odom_broadcaster.sendTransform(
         (self.odom_x, self.odom_y, 0.),
         odom_quat,
-        rospy.Time.now(),
+        tf_time, #self.pose_time, rospy.Time.now()
         "odom",
         "map"
         )
@@ -592,9 +627,14 @@ if __name__ == '__main__':
         jeep_icp = JeepICP()
         rospy.loginfo("Starting Jeep ICP")
         #rospy.spin()
-        r = rospy.Rate(50.0)
+        r = rospy.Rate(20.0)
         while not rospy.is_shutdown():
-            jeep_icp.update_pose()
+            if(jeep_icp.pose_ready):
+                print "data timestamp: ", jeep_icp.pose_time
+                print "noww timestamp: ", rospy.Time.now()
+                print "diff timestamp: ", (rospy.Time.now() - jeep_icp.pose_time).to_sec()
+                jeep_icp.update_pose() #Consider removing this and just use the cloud callback
+                jeep_icp.pose_ready = False
             r.sleep()
             
     except rospy.ROSInterruptException:

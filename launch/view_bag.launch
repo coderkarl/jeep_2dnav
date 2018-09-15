@@ -1,13 +1,13 @@
 <launch>
 
   <!-- Arguments -->
-  <arg name="bagfile" default="/home/karl/auto_jeep/bag_files_ROS/jeep_gnd_filt_Nov14_runshort_run2.bag"/>
+  <arg name="bagfile" default="/home/karl/auto_jeep/bag_files_ROS/jeep_gnd_filt_Nov14_runshort_run3.bag"/>
   <param name="/use_sim_time" value="true"/>
 
   <arg name="map_file" default="$(find nav_sim)/config/big_run_map1u_clean_append6.yaml"/>
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
 
-  <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="6.9 0.3 0 0.01 0 0 /map /odom 2" />
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="6.9 0.3 0 0.01 0 0 /map /odom 2" /> -->
   <!-- 2018-05-27-19-24-30.bag, x:6.5 y:2.3 yaw:0.09 -->
   <!-- 2018-05-27-19-42-03.bag, x:5.5 y:-7.5 yaw:0.03 -->
   <!-- 2018-05-27-19-44-12.bag, x:2.5 y:-10.5 yaw:0.05 -->
@@ -21,6 +21,6 @@
   <!-- Play the bagfile -->
   <node pkg="rosbag" type="play" name="rosbag" args="--clock --loop $(arg bagfile)"/>
 
-  <!-- <include file="$(find jeep_2dnav)/launch/jeep_amcl_diff.launch" /> -->
+  <include file="$(find jeep_2dnav)/launch/jeep_amcl_diff.launch" />
 
 </launch>
