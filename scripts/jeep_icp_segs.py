@@ -217,14 +217,14 @@ class JeepICP():
         self.angle_eps_long_rad = 15.0*3.14/180.
         self.angle_eps_short_rad = 35.0*3.14/180. #allowed if consec point dist is < short_gap
         self.short_gap = 3.5
-        self.min_nSegPts = 7
+        self.min_nSegPts = 4
         self.max_seg_correlation_dist = 15.
         self.prev_trafo_seg_type = 'horz'
         
         self.segMAX_DELTA_THETA_RAD = 0.15 #radians, ignore icp transformations with abs(sin(theta)) > this
         self.segMAX_DELTA_X = 3.0 #meters, ignore icp transformations with abs(delta x) > this
         self.segMAX_DELTA_Y = 3.0 #meters
-        self.seg_alpha = 1.0
+        self.seg_alpha = 0.5
         
         #self.tf_listener = tf.TransformListener()
         self.transform = None
@@ -552,7 +552,7 @@ class JeepICP():
                         #end if
                     #end if
                 #end if enough point pairs
-            elif(self.yaw_rate_filt < 0.05): #end if not line seg trafo
+            elif(self.yaw_rate_filt < 0.15): #end if not line seg trafo
                 if(trafo_seg_horz and trafo_seg_vert):
                     if(self.prev_trafo_seg_type == 'vert'):
                         print "horz seg trafo:"
@@ -581,11 +581,12 @@ class JeepICP():
                     la, c1, s1, dx1, dy1 = trafo
                     dbx = dx1 - (1.-c)*tx - s*ty
                     dby = dy1 + s*tx - (1.-c)*ty
+                    print "sin, dbx, dby:", s1, dbx, dby
                     if( (abs(s1) < self.segMAX_DELTA_THETA_RAD and abs(dbx) < self.segMAX_DELTA_X and abs(dby) < self.segMAX_DELTA_Y )):
                         #or seg_length > 5.0):
                         print "VALID TRAFO"
                         la, c, s, dx, dy = trafo
-                        if(abs(s) > 0.05):
+                        if(abs(s) > 0.1):
                             # modify dx and dy so base_link only rotates in place for line_seg trafo
                             dx = (1.-c)*tx + s*ty
                             dy = -s*tx + (1.-c)*ty
