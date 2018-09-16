@@ -7,7 +7,7 @@
 import rospy, math
 from math import sin, cos
 import numpy as np
-from geometry_msgs.msg import Twist, TransformStamped
+from geometry_msgs.msg import Twist, TransformStamped, PoseStamped
 #from wheele_msgs.msg import SpeedCurve
 from std_msgs.msg import Int16
 from nav_msgs.msg import Odometry, Path
@@ -186,6 +186,11 @@ class JeepICP():
         #self.odom_pub = rospy.Publisher('odom_icp', Odometry, queue_size=1)
         self.odom_broadcaster = tf.TransformBroadcaster()
         
+        rospy.Subscriber('odom', Odometry, self.odom_callback, queue_size=2)
+        self.yaw_rate_filt = 0.0
+        self.bot_odom_x = 0.0
+        self.bot_odom_y = 0.0
+        
         rospy.Subscriber('/pc2', PointCloud2, self.cloud_callback, queue_size = 10)
         #self.cloud_pub = rospy.Publisher('cloud_map', PointCloud2, queue_size=1)
         
@@ -195,36 +200,38 @@ class JeepICP():
         #self.odom_theta = 0.05 #Try -0.03 w.r.t. map alignment (landmarks made square above)
         
         # Facing South, east of garage
+        self.odom_y = -2.
         self.odom_theta = -1.5
         
         self.min_point_pairs = 7
         self.max_correlation_dist = 2.0 #meters, max correlation dist for pairing lidar points with known map points
         self.FOUND_DIST_THRESH = 0.1 #meters, stop searching for a better landmark match if distance is less than this
         self.min_scan_elev = -0.65 #meters, points below this height will be ignored (e.g. ground readings maybe)
-        self.MAX_DELTA_THETA_RAD = 0.2 #radians, ignore icp transformations with abs(sin(theta)) > this
+        self.MAX_DELTA_THETA_RAD = 0.05 #radians, ignore icp transformations with abs(sin(theta)) > this
         self.MAX_DELTA_X = 3.0 #meters, ignore icp transformations with abs(delta x) > this
         self.MAX_DELTA_Y = 3.0 #meters
-        self.alpha = 0.05 # complementary filter: odom x,y,theta = odom*(1-alpha) + icp_odom*(alpha)
+        self.alpha = 0.00 # complementary filter: odom x,y,theta = odom*(1-alpha) + icp_odom*(alpha)
         
         # line segment find params, NOTE current issue transitioning from point 59 to 0 (need to overlap and merge maybe)
         #    ALSO, you are not re-using the corner point. Shed west wall counted as line to NW corner, but North wall does not start with NW corner
         self.angle_eps_long_rad = 15.0*3.14/180.
         self.angle_eps_short_rad = 35.0*3.14/180. #allowed if consec point dist is < short_gap
         self.short_gap = 3.5
-        self.min_nSegPts = 4
+        self.min_nSegPts = 7
         self.max_seg_correlation_dist = 15.
         self.prev_trafo_seg_type = 'horz'
         
-        self.segMAX_DELTA_THETA_RAD = 0.3 #radians, ignore icp transformations with abs(sin(theta)) > this
-        self.segMAX_DELTA_X = 5.0 #meters, ignore icp transformations with abs(delta x) > this
-        self.segMAX_DELTA_Y = 5.0 #meters
-        self.seg_alpha = 0.05
+        self.segMAX_DELTA_THETA_RAD = 0.15 #radians, ignore icp transformations with abs(sin(theta)) > this
+        self.segMAX_DELTA_X = 3.0 #meters, ignore icp transformations with abs(delta x) > this
+        self.segMAX_DELTA_Y = 3.0 #meters
+        self.seg_alpha = 1.0
         
         #self.tf_listener = tf.TransformListener()
         self.transform = None
         
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        #self.tf_listener1 = tf.TransformListener()
         
         self.cloud_count = 0
         self.applied = False
@@ -337,7 +344,12 @@ class JeepICP():
             rk = (rk+1)%(self.nLandmarks)
             r_count += 1
         return best_rk, best_ref
-        
+    def odom_callback(self,msg):
+        self.bot_odom_x = msg.pose.pose.position.x
+        self.bot_odom_y = msg.pose.pose.position.y
+        self.yaw_rate_filt = self.yaw_rate_filt*0.9 + abs(msg.twist.twist.angular.z)*0.1
+        #print "yaw_rate_filt: ", self.yaw_rate_filt
+            
     def cloud_callback(self, msg):
         dx = 0.0
         dy = 0.0
@@ -360,6 +372,16 @@ class JeepICP():
                 self.transform = self.tf_buffer.lookup_transform("map","laser", rospy.Time()) # rospy.Time(0) requests latest
             #self.transform = self.tf_buffer.waitForTransform("map","laser", msg.header.stamp)
             self.pose_time = msg.header.stamp
+
+            #p1 = PoseStamped()
+            #p1.header.frame_id = "base_link"
+            #pBot = self.tf_listener1.transformPose("map",p1)
+            tx = self.transform.transform.translation.x
+            ty = self.transform.transform.translation.y
+            quat = self.transform.transform.rotation
+            quat_list = [quat.x, quat.y, quat.z, quat.w]
+            (roll, pitch, yaw) = euler_from_quaternion(quat_list)
+            print "bot x,y,theta:", tx, ty, yaw
 
             pc_map = do_transform_cloud(msg, self.transform)
             #self.cloud_pub.publish(pc_map) #Temporary for validating the transformed point cloud
@@ -462,8 +484,10 @@ class JeepICP():
                                 print "ref pts (modified based on seg length): ", ref.x1, ref.y1, ref.x2, ref.y2
                                 if(line_segs[-1].line_type == 'horz'):
                                     trafo_seg_horz = line_segs[-1].get_trafo(ref)
+                                    seg_length_horz = line_segs[-1].length
                                 elif(line_segs[-1].line_type == 'vert'):
                                     trafo_seg_vert = line_segs[-1].get_trafo(ref)
+                                    seg_length_vert = line_segs[-1].length
                                 
                             #end if enough segPts for valid line segment
                             segPtA = segPt1
@@ -495,7 +519,7 @@ class JeepICP():
                 #end if valid point
             #end loop thru all points
             
-            if(nLineSegs == 0):        
+            if(nLineSegs == 0 and self.yaw_rate_filt < 0.05):        
                 print "numPoints: ", numPoints
                 print "lx, ly, rx, ry"
                 #for l,r in zip(left_list,right_list):
@@ -522,34 +546,51 @@ class JeepICP():
                             print "trafo:"
                             print trafo
                             la, c, s, dx, dy = trafo
+                            # modify dx and dy so base_link only rotates in place for line_seg trafo
+                            dx = (1.-c)*tx + s*ty
+                            dy = -s*tx + (1.-c)*ty
                         #end if
                     #end if
                 #end if enough point pairs
-            else: #end if not line seg trafo
+            elif(self.yaw_rate_filt < 0.05): #end if not line seg trafo
                 if(trafo_seg_horz and trafo_seg_vert):
                     if(self.prev_trafo_seg_type == 'vert'):
                         print "horz seg trafo:"
                         trafo = trafo_seg_horz
+                        seg_length = seg_length_horz
                         self.prev_trafo_seg_type = 'horz'
                     else:
                         print "vert seg trafo:"
                         trafo = trafo_seg_vert
+                        seg_length = seg_length_vert
                         self.prev_trafo_seg_type = 'vert'
                     # end horz vert trafo alternate
                 elif(trafo_seg_horz):
                     print "horz seg trafo:"
                     trafo = trafo_seg_horz
+                    seg_length = seg_length_horz
                     self.prev_trafo_seg_type = 'horz'
                 elif(trafo_seg_vert):
                     print "vert seg trafo:"
                     trafo = trafo_seg_vert
+                    seg_length = seg_length_vert
                     self.prev_trafo_seg_type = 'vert'
                 #end if both trafo_seg avaialable vs. one
                 if(trafo):
                     print trafo
-                    if(abs(trafo[2]) < self.segMAX_DELTA_THETA_RAD and abs(trafo[3]) < self.segMAX_DELTA_X and abs(trafo[4]) < self.segMAX_DELTA_Y ):
+                    la, c1, s1, dx1, dy1 = trafo
+                    dbx = dx1 - (1.-c)*tx - s*ty
+                    dby = dy1 + s*tx - (1.-c)*ty
+                    if( (abs(s1) < self.segMAX_DELTA_THETA_RAD and abs(dbx) < self.segMAX_DELTA_X and abs(dby) < self.segMAX_DELTA_Y )):
+                        #or seg_length > 5.0):
                         print "VALID TRAFO"
                         la, c, s, dx, dy = trafo
+                        if(abs(s) > 0.05):
+                            # modify dx and dy so base_link only rotates in place for line_seg trafo
+                            dx = (1.-c)*tx + s*ty
+                            dy = -s*tx + (1.-c)*ty
+                        elif(self.prev_trafo_seg_type == 'horz'): #don't allow horz segs to adjust bot x
+                            dx = (1.-c)*tx + s*ty
             #end if trafo vs. trafo_seg
                             
         #except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
