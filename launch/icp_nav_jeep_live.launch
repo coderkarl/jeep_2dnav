@@ -1,0 +1,13 @@
+<launch>
+  <include file="$(find sweep_ros)/launch/sweep2scan.launch" />
+  <node pkg="jeep_ros_comm" type="jeep_ros_comm.py" name="jeep_ros_comm" />
+  
+  <arg name="map_file" default="/home/karl/Downloads/big_run_map1u_clean_append6.yaml"/>
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="screen"/>
+  <node pkg="jeep_2dnav" type="jeep_icp_segs.py" name="jeep_icp" output="screen"/>
+  <include file="$(find nav_sim)/launch/move_base_nav.launch" />
+
+  <node pkg="jeep_ros_comm" type="jeep_local_planner_sim.py" name="jeep_planner" output="screen"/>
+  <!-- <node pkg="jeep_2dnav" type="mow_path.py" name="mow_path" output="screen"/> -->
+  
+</launch>

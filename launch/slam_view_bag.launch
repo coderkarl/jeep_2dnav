@@ -1,0 +1,16 @@
+<launch>
+
+  <!-- Arguments -->
+  <arg name="bagfile" default="/home/karl/auto_jeep/bag_files_ROS/jeep_gnd_filt_Nov14_runshort_run2.bag"/>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- RViz -->
+  <node name="visualisation" pkg="rviz" type="rviz" args="-d $(find nav_sim)/config/nav_sim.rviz" />
+
+  <!-- Play the bagfile, loop is an option -->
+  <node pkg="rosbag" type="play" name="rosbag" args="--clock $(arg bagfile)"/>
+
+  <!-- <include file="$(find sweep_ros)/launch/gmap_mod_params.launch" /> -->
+  <node pkg="gmapping" type="slam_gmapping" name="slam" />
+
+</launch>
