@@ -1,0 +1,13 @@
+<launch>
+  <include file="$(find rplidar_ros)/launch/rplidar_a3.launch" />
+
+  <node pkg="jeep_ros_comm" type="jeep_ros_comm.py" name="jeep_ros_comm" />
+  
+  <include file="$(find sweep_ros)/launch/gmap_mod_params.launch" />
+
+  <include file="$(find nav_sim)/launch/move_base_nav.launch" />
+
+  <node pkg="jeep_ros_comm" type="jeep_local_planner_sim.py" name="jeep_planner" output="screen"/>
+  <!-- <node pkg="jeep_2dnav" type="mow_path.py" name="mow_path" output="screen"/> -->
+  
+</launch>
