@@ -1,0 +1,43 @@
+<launch>
+  <!-- <param name="use_sim_time"  value="true" />  -->
+
+  <!-- <node pkg="rviz" type="rviz" name="rviz"/> -->	
+
+  <!-- node pkg="tf" type="static_transform_publisher" name="base_frame_laser" args="0 0 0 0.0 0 0 /base_link /laser 10" / -->
+    
+  <!-- run slam_gmapping node -->
+  <node pkg="gmapping"  name="slam_gmapping" type="slam_gmapping" output="screen">
+    <rosparam>
+      throttle_scans: 1
+      map_update_interval: 1
+      maxUrange: 23
+      sigma: 0.05
+      kernelSize: 1
+      lstep: 0.05
+      astep: 0.05
+      iterations: 5
+      lsigma: 0.075
+      ogain: 3.0
+      lskip: 0
+      minimumScore: 10
+      srr: 0.01
+      srt: 0.02
+      str: 0.01
+      stt: 0.02
+      linearUpdate: 1.0
+      angularUpdate: 0.5
+      temporalUpdate: 1.0
+      resampleThreshold: 0.5
+      particles: 30
+      delta: 0.1
+      llsamplerange: 0.05
+      llsamplestep: 0.05
+      lasamplerange: 0.01
+      lasamplestep: 0.01
+      transform_publish_period: 0.05
+      occ_thresh: 0.1
+      maxRange: 26
+    </rosparam>
+  </node>
+</launch>
+

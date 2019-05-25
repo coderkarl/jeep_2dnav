@@ -1,9 +1,14 @@
-obstacle_range: 25.
-raytrace_range: 30.
+obstacle_range: 24
+raytrace_range: 60
 #footprint: [[x0, y0], [x1, y1], ... [xn, yn]]
-#robot_radius: 0.15
-#inflation_radius: 0.01
+robot_radius: 0.2
+inflation_radius: 1.0
+cost_scaling_factor: 0.5
 
-observation_sources: laser_scan_sensor
+observation_sources: laser_scan_sensor #sensor2
 
-laser_scan_sensor: {sensor_frame: laser, data_type: LaserScan, topic: scan, marking: false, clearing: true}
+laser_scan_sensor: {sensor_frame: laser, data_type: LaserScan, topic: scan, marking: true, clearing: true}
+#, min_obstacle_height: -0.25}
+#, max_obstacle_height: 5.0}
+
+#sensor2: {sensor_frame: laser, data_type: LaserScan, topic: scan2, marking: true, clearing: true}
