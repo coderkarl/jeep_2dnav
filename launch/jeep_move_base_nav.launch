@@ -18,7 +18,7 @@
     <rosparam file="$(find jeep_2dnav)/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find jeep_2dnav)/global_costmap_params.yaml" command="load" />
     <rosparam file="$(find jeep_2dnav)/teb_local_planner_params.yaml" command="load" />
-    <param name="controller_frequency" value="2.0" />
+    <param name="controller_frequency" value="5.0" />
     <param name="clearing_rotation_allowed" value="false" />
     <param name="base_global_planner" value="global_planner/GlobalPlanner" />
     <!-- <param name="base_local_planner" value="base_local_planner/TrajectoryPlannerROS" /> -->

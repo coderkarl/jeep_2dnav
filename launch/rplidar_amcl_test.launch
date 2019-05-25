@@ -1,0 +1,11 @@
+<launch>
+  <include file="$(find rplidar_ros)/launch/rplidar_a3.launch" />
+  <node pkg="jeep_ros_comm" type="jeep_ros_comm.py" name="jeep_ros_comm" />
+  
+  <arg name="map_file" default="/home/karl/Downloads/rplidar_mapF_clean.yaml"/>
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="screen"/>
+  <node pkg="amcl" type="amcl" name="amcl" output="screen" />
+  <!-- <include file="$(find jeep_2dnav)/launch/jeep_amcl_diff.launch" /> -->
+  <!-- <node pkg="jeep_2dnav" type="jeep_icp_segs.py" name="jeep_icp" output="screen"/> -->
+  
+</launch>

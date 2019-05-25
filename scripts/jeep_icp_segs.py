@@ -196,11 +196,11 @@ class JeepICP():
         
         # Facing East, east of garage
         self.odom_x = 6.0 #6.0
-        self.odom_y = 1. #-8.0
-        #self.odom_theta = 0.05 #Try -0.03 w.r.t. map alignment (landmarks made square above)
+        self.odom_y = 0. #-8.0
+        #self.odom_theta = 0.0 #Try -0.03 w.r.t. map alignment (landmarks made square above)
         
         # Facing South, east of garage
-        self.odom_y = -2.
+        #self.odom_y = -2.
         self.odom_theta = -1.5
         
         self.min_point_pairs = 7
@@ -224,7 +224,7 @@ class JeepICP():
         self.segMAX_DELTA_THETA_RAD = 0.15 #radians, ignore icp transformations with abs(sin(theta)) > this
         self.segMAX_DELTA_X = 3.0 #meters, ignore icp transformations with abs(delta x) > this
         self.segMAX_DELTA_Y = 3.0 #meters
-        self.seg_alpha = 0.5
+        self.seg_alpha = 0.1
         
         #self.tf_listener = tf.TransformListener()
         self.transform = None
@@ -547,8 +547,8 @@ class JeepICP():
                             print trafo
                             la, c, s, dx, dy = trafo
                             # modify dx and dy so base_link only rotates in place for line_seg trafo
-                            dx = (1.-c)*tx + s*ty
-                            dy = -s*tx + (1.-c)*ty
+                            #dx = (1.-c)*tx + s*ty
+                            #dy = -s*tx + (1.-c)*ty
                         #end if
                     #end if
                 #end if enough point pairs
@@ -586,12 +586,12 @@ class JeepICP():
                         #or seg_length > 5.0):
                         print "VALID TRAFO"
                         la, c, s, dx, dy = trafo
-                        if(abs(s) > 0.1):
+                        #if(abs(s) > 0.1):
                             # modify dx and dy so base_link only rotates in place for line_seg trafo
-                            dx = (1.-c)*tx + s*ty
-                            dy = -s*tx + (1.-c)*ty
-                        elif(self.prev_trafo_seg_type == 'horz'): #don't allow horz segs to adjust bot x
-                            dx = (1.-c)*tx + s*ty
+                        #    dx = (1.-c)*tx + s*ty
+                        #    dy = -s*tx + (1.-c)*ty
+                        #elif(self.prev_trafo_seg_type == 'horz'): #don't allow horz segs to adjust bot x
+                        #    dx = (1.-c)*tx + s*ty
             #end if trafo vs. trafo_seg
                             
         #except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):

@@ -1,0 +1,16 @@
+<launch>
+  <arg name="bagfile" default="/home/karl/auto_jeep/bag_files_ROS/auto_bags/man_drive_camera_2018-10-03-18-11-06.bag"/> #10-01-18-47-10, 56-54
+  <param name="/use_sim_time" value="true"/>
+  
+  <arg name="map_file" default="/home/karl/auto_jeep/house_maps/rplidar_mapF_clean_simple_front.yaml"/>
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="screen"/>
+
+  <include file="$(find jeep_2dnav)/launch/rplidar_amcl.launch" />
+  <!-- <node pkg="jeep_2dnav" type="jeep_icp_segs.py" name="jeep_icp" output="screen"/> -->
+
+  <node name="visualisation" pkg="rviz" type="rviz" args="-d $(find nav_sim)/config/nav_sim.rviz" />
+
+  <!-- Play the bagfile, loop is an option -->
+  <node pkg="rosbag" type="play" name="rosbag" args="--clock $(arg bagfile) -s 1"/>
+  
+</launch>

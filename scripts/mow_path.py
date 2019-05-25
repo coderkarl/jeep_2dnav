@@ -25,11 +25,11 @@ class MowPath():
         self.init_x = 6.0
         self.init_y = 1.0
         
-        self.mx1 = 0.0
-        self.my1 = -8.0
+        self.mx1 = 4.0 #2.0
+        self.my1 = -16.0 #-8.0
         
-        self.mx2 = -14.0
-        self.my2 = -12.0
+        self.mx2 = -12.0 #-13.0
+        self.my2 = -22.0 #-16.0
         
         self.wpx = self.init_x
         self.wpy = self.init_y
@@ -90,7 +90,7 @@ class MowPath():
                     self.state = 'mowing_rev'
                 elif(self.state == 'mowing_rev'):
                     self.wpx = self.mx2
-                    self.wpy = ty - 1.0
+                    self.wpy = ty - 0.5
                     self.state = 'mowing_fwd'
                 elif(self.state == 'mowing_fwd'):
                     if self.near_end(tx,ty,2.0):
@@ -99,7 +99,7 @@ class MowPath():
                         self.state = 'done'
                     else:
                         self.wpx = self.mx1
-                        self.wpy = ty - 1.0
+                        self.wpy = ty - 0.5
                         self.state = 'mowing_rev'
                         
                 
