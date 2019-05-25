@@ -1,5 +1,7 @@
 <launch>
-  <include file="$(find rplidar_ros)/launch/rplidar_a3.launch" />
+  <include file="$(find jeep_2dnav)/launch/rplidar.launch" />
+
+  <include file="$(find jeep_2dnav)/launch/filter_scan.launch" />
 
   <node pkg="jeep_ros_comm" type="jeep_ros_comm.py" name="jeep_ros_comm" />
   
